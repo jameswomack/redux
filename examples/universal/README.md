@@ -6,5 +6,5 @@
 ```
 npm i
 npm start
-open localhost:300o?counter=10
+open localhost:3000?counter=10
 ```
