@@ -1,50 +1,68 @@
 /* eslint-disable no-console, no-use-before-define */
 
-import path from 'path';
-import Express from 'express';
-import qs from 'qs';
+import path from 'path'
+import Restify from 'restify'
+import Bunyan from 'bunyan'
+import qs from 'qs'
 
-import React from 'react';
-import { Provider } from 'react-redux';
+import React from 'react'
+import { Provider } from 'react-redux'
 
-import configureStore from '../common/store/configureStore';
-import App from '../common/containers/App';
-import { fetchCounter } from '../common/api/counter';
+import configureStore from '../common/store/configureStore'
+import App from '../common/containers/App'
+import { fetchCounter } from '../common/api/counter'
 
-const app = new Express();
-const port = 3000;
+const { name } = require('../package.json')
+
+const log = Bunyan.createLogger({ name : name })
+
+const app = Restify.createServer({
+  formatters: {
+    'application/json': function (req, res, body, cb) {
+      return cb(null, JSON.stringify(body))
+    },
+
+    'text/html': function (req, res, body, cb) {
+      return cb(null, body)
+    }
+  }
+})
+const port = 3000
+
+app.use(Restify.queryParser())
 
 // Use this middleware to server up static files built into dist
-app.use(require('serve-static')(path.join(__dirname, '../dist')));
+var staticMW = require('serve-static')(path.join(__dirname, '../dist'))
+app.get('/bundle.js', staticMW)
 
 // This is fired every time the server side receives a request
-app.use(handleRender);
+app.get('/', handleRender)
 
 function handleRender(req, res) {
   // Query our mock API asynchronously
   fetchCounter(apiResult => {
     // Read the counter from the request, if provided
-    const params = qs.parse(req.query);
-    const counter = parseInt(params.counter, 10) || apiResult || 0;
+    const params = qs.parse(req.query)
+    const counter = parseInt(params.counter, 10) || apiResult || 0
 
     // Compile an initial state
-    const initialState = { counter };
+    const initialState = { counter }
 
     // Create a new Redux store instance
-    const store = configureStore(initialState);
+    const store = configureStore(initialState)
 
     // Render the component to a string
     const html = React.renderToString(
       <Provider store={store}>
         { () => <App/> }
-      </Provider>);
+      </Provider>)
 
     // Grab the initial state from our Redux store
-    const finalState = store.getState();
+    const finalState = store.getState()
 
     // Send the rendered page back to the client
-    res.send(renderFullPage(html, finalState));
-  });
+    res.send(renderFullPage(html, finalState))
+  })
 }
 
 function renderFullPage(html, initialState) {
@@ -57,18 +75,18 @@ function renderFullPage(html, initialState) {
       <body>
         <div id="app">${html}</div>
         <script>
-          window.__INITIAL_STATE__ = ${JSON.stringify(initialState)};
+          window.__INITIAL_STATE__ = ${JSON.stringify(initialState)}
         </script>
         <script src="/bundle.js"></script>
       </body>
     </html>
-    `;
+    `
 }
 
 app.listen(port, (error) => {
   if (error) {
-    console.error(error);
+    log.error(error)
   } else {
-    console.info(`==> 🌎  Listening on port ${port}. Open up http://localhost:${port}/ in your browser.`);
+    log.info(`==> 🌎  Listening on port ${port}. Open up http://localhost:${port}/ in your browser.`)
   }
-});
+})
